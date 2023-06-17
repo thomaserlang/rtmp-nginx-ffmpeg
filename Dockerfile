@@ -1,13 +1,12 @@
-ARG DEBIAN_VERSION=stretch-slim 
+ARG DEBIAN_VERSION=bookworm-slim 
 
 ##### Building stage #####
 FROM debian:${DEBIAN_VERSION} as builder
-MAINTAINER Tareq Alqutami <tareqaziz2010@gmail.com>
 
 # Versions of nginx, rtmp-module and ffmpeg 
-ARG  NGINX_VERSION=1.17.5
-ARG  NGINX_RTMP_MODULE_VERSION=1.2.1
-ARG  FFMPEG_VERSION=4.2.1
+ARG  NGINX_VERSION=1.25.0
+ARG  NGINX_RTMP_MODULE_VERSION=1.2.2
+ARG  FFMPEG_VERSION=6.0
 
 # Install dependencies
 RUN apt-get update && \
@@ -48,35 +47,6 @@ RUN cd /tmp/build/nginx-${NGINX_VERSION} && \
         --add-module=/tmp/build/nginx-rtmp-module-${NGINX_RTMP_MODULE_VERSION} && \
     make -j $(getconf _NPROCESSORS_ONLN) && \
     make install
-
-# Download ffmpeg source
-RUN cd /tmp/build && \
-  wget http://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.gz && \
-  tar -zxf ffmpeg-${FFMPEG_VERSION}.tar.gz && \
-  rm ffmpeg-${FFMPEG_VERSION}.tar.gz
-  
-# Build ffmpeg
-RUN cd /tmp/build/ffmpeg-${FFMPEG_VERSION} && \
-  ./configure \
-	  --enable-version3 \
-	  --enable-gpl \
-	  --enable-small \
-	  --enable-libx264 \
-	  --enable-libx265 \
-	  --enable-libvpx \
-	  --enable-libtheora \
-	  --enable-libvorbis \
-	  --enable-librtmp \
-	  --enable-postproc \
-	  --enable-swresample \ 
-	  --enable-libfreetype \
-	  --enable-libmp3lame \
-	  --disable-debug \
-	  --disable-doc \
-	  --disable-ffplay \
-	  --extra-libs="-lpthread -lm" && \
-	make -j $(getconf _NPROCESSORS_ONLN) && \
-	make install
 	
 # Copy stats.xsl file to nginx html directory and cleaning build files
 RUN cp /tmp/build/nginx-rtmp-module-${NGINX_RTMP_MODULE_VERSION}/stat.xsl /usr/local/nginx/html/stat.xsl && \
@@ -90,7 +60,7 @@ RUN apt-get update && \
 	apt-get install -y \
 		ca-certificates openssl libpcre3-dev \
 		librtmp1 libtheora0 libvorbis-dev libmp3lame0 \
-		libvpx4 libx264-dev libx265-dev && \
+		libvpx7 libx264-dev libx265-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy files from build stage to final stage	
@@ -99,6 +69,7 @@ COPY --from=builder /etc/nginx /etc/nginx
 COPY --from=builder /var/log/nginx /var/log/nginx
 COPY --from=builder /var/lock /var/lock
 COPY --from=builder /var/run/nginx /var/run/nginx
+COPY --from=mwader/static-ffmpeg:6.0 /ffmpeg /usr/local/bin/
 
 # Forward logs to Docker
 RUN ln -sf /dev/stdout /var/log/nginx/access.log && \
